@@ -5,13 +5,14 @@ date: "February 21, 2016"
 output: html_document
 ---
 Overview:Week 1 lecture covers IRange,GRange and AnnotationHub. After first week learning, I should be able to fetch data from AnnotationHub, find the overlapped region from two different data and calculate the enrichment of peaks A in data1 in peaks B in data2. 
+
 Q1: Use the AnnotationHub package to obtain data on "CpG Islands" in the human genome.
     Question: How many islands exists on the autosomes?
 ```{r}
 library(BiocInstaller)
-biocLite(GenomicRanges)
-biocLite(IRanges)
-biocLite(AnnotationHub)
+biocLite("GenomicRanges")
+biocLite("IRanges")
+biocLite("AnnotationHub")
 library(GenomicRanges)
 library(AnnotationHub)
 ah=AnnotationHub()
