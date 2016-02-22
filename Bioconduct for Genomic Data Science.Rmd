@@ -1,0 +1,111 @@
+---
+title: "Week 1 assignment of Bioconductor for Genomic Data Science"
+author: "Yilin"
+date: "February 21, 2016"
+output: html_document
+---
+Overview:Week 1 lecture covers IRange,GRange and AnnotationHub. After first week learning, I should be able to fetch data from AnnotationHub, find the overlapped region from two different data and calculate the enrichment of peaks A in data1 in peaks B in data2. 
+Q1: Use the AnnotationHub package to obtain data on "CpG Islands" in the human genome.
+    Question: How many islands exists on the autosomes?
+```{r}
+library(BiocInstaller)
+biocLite(GenomicRanges)
+biocLite(IRanges)
+biocLite(AnnotationHub)
+library(GenomicRanges)
+library(AnnotationHub)
+ah=AnnotationHub()
+ah1=subset(ah,species=="Homo sapiens")
+qse=query(ah1,"CpG Islands")
+grcpg=qse[[1]]
+grcpg_autosome=GRanges()
+for (i in 1:22){
+  grs=subset(grcpg,seqnames(grcpg)==paste0("chr",i))
+  grcpg_autosome=append(grcpg_autosome,grs)
+}
+length(grcpg_autosome)
+```
+
+Q2:How many CpG Islands exists on chromosome 4
+```{r}
+grcpg4=subset(grcpg,seqnames(grcpg)=="chr4")
+length(grcpg4)
+```
+
+Q3:Obtain the data for the H3K4me3 histone modification for the H1 cell line from Epigenomics Roadmap, using AnnotationHub. Subset these regions to only keep regions mapped to the autosomes (chromosomes 1 to 22)
+Question: How many bases does these regions cover?
+```{r}
+library(rtracklayer)
+qse1=query(ah,c("H3K4me3","H1 cell"))
+grH3K4=qse1[[2]]
+grH3K4_autosome=GRanges()
+for (i in 1:22){
+  grs=subset(grH3K4,seqnames(grH3K4)==paste0("chr",i))
+  grH3K4_autosome=append(grH3K4_autosome,grs)
+}
+sum(width(grH3K4_autosome))
+```
+
+Q4:Obtain the data for the H3K27me3 histone modification for the H1 cell line from Epigenomics Roadmap, using the AnnotationHub package. Subset these regions to only keep regions mapped to the autosomes. In the return data, each region has an associated "signalValue"
+Question: What is the mean signalValue across all regions on the standard chromosomes?
+```{r}
+qse2=query(ah,c("H3K27me3","H1 cell"))
+grH3K27=qse2[[2]]
+grH3K27_autosome=GRanges()
+for (i in 1:22){
+  grs=subset(grH3K27,seqnames(grH3K27)==paste0("chr",i))
+  grH3K27_autosome=append(grH3K27_autosome,grs)
+}
+mean(grH3K27_autosome$signalValue,na.rm=TRUE)
+```
+
+Q5:Bivalent regions are bound by both H3K4me3 and H3K27me3
+Question: Using the regions we have obtained above, how many bases on the standard chromosomes are bivalently marked?
+```{r}
+sum(width(intersect(grH3K4_autosome,grH3K27_autosome)))
+```
+
+Q6:We will examine the extent to which bivalent regions overlap CpG Islands
+Question: how big a fraction (expressed as a number between 0 and 1) of the bivalent regions, overlap one or more CpG Islands?
+```{r}
+grH3K_overlay=intersect(grH3K4_autosome,grH3K27_autosome)
+ov=findOverlaps(grH3K_overlay,grcpg_autosome)
+length(unique(queryHits(ov)))/length(grH3K_overlay)
+```
+
+Q7:How big a fraction (expressed as a number between 0 and 1) of the bases which are part of CpG Islands, are also bivalent marked
+```{r}
+grcpg_H3K=intersect(grcpg_autosome,grH3K_overlay)
+sum(width((grcpg_H3K)))/sum(width((grcpg_autosome)))
+```
+
+Q8:How many bases are bivalently marked within 10kb of CpG Islands?
+Tip: consider using the "resize()"" function
+```{r}
+grcpg_r=resize(grcpg_autosome,width=20000+width(grcpg_autosome),fix="center")
+sum(width(intersect(grH3K_overlay,grcpg_r)))
+```
+
+Q9:Question: How big a fraction (expressed as a number between 0 and 1) of the human genome is contained in a CpG Island?
+Tip 1: the object returned by AnnotationHub contains "seqlengths"
+Tip 2: you may encounter an integer overflow. As described in the session on R Basic Types, you can address this by converting integers to numeric before summing them, "as.numeric()"
+```{r}
+seq4=query(ah,"RefSeq")
+gr_genome=seq4[[1]]
+contain=sum(width(grcpg_autosome))
+total=sum(as.numeric(seqlengths(gr_genome)[1:22]))
+ratio=contain/total
+```
+
+Q10:Compute an odds-ratio for the overlap of bivalent marks with CpG islands
+```{r}
+table_inout=matrix(rep(0,4),nrow=2,ncol=2)
+row.names(table_inout)=c("bivalent_in","bivalent_out")
+colnames(table_inout)=c("cpg_in","cpg_out")
+table_inout[1,1]=sum(width((grcpg_H3K)))
+table_inout[1,2]=sum(width((grcpg_autosome)))-sum(width((grcpg_H3K)))
+table_inout[2,1]=sum(width(grH3K_overlay))-sum(width((grcpg_H3K)))
+table_inout[2,2]=sum(as.numeric(seqlengths(gr_genome)[1:22]))-sum(width((grcpg_autosome)))-sum(width(grH3K_overlay))+sum(width((grcpg_H3K)))
+odds_ratio=(table_inout[1,1]*table_inout[2,2])/(table_inout[1,2]*table_inout[2,1])
+```
+
